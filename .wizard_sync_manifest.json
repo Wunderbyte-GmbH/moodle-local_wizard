@@ -1,5 +1,6 @@
 {
  ".gitignore": "3ddc83547e87285ee8e8c3c8cca52eea202f3be43a0331693234414c90c5e165",
+ "README.md": "ee908129872ef598ab8ea605dc98d5ac0da391256a4d9ea8db1fd8331e41169d",
  "amd/build/aiinstructions.min.js": "51876528e3a2c4793a27296c728216dfac7845bdec96aa7e42e14528ae6998c0",
  "amd/build/aiinstructions.min.js.map": "b0aedd336297f117ae567f013f4587ef6adab1b36cceba907f94ebd344e67f04",
  "amd/build/benchmark_trend_chart.min.js": "801ceb5f08d4531fb4fe684d38444686a18705909c42d7f0f46069f04d873b0e",
@@ -423,7 +424,8 @@
  "db/shortcodes.php": "f941724c37b7e392f33830196ea1d3a91d8731da073089f8dfcb0541744113e4",
  "db/tasks.php": "9f781ce28866d23616559adc41e9c23698b9382ee092fd751cee330c4552cef4",
  "db/upgrade.php": "3e41783dfbfadd4deb21f9223b96c38e02e7146ef8cebdfafcb855ede22aa3d7",
- "docs/skills/README.md": "63c81b700c76f308938534d557afbe02325d899259b60b0f10df7a20cb3e311c",
+ "docs/README.md": "84136b5b411a13993a631429f37315e8559bf533e6280ae193900772deff11e8",
+ "docs/skills/README.md": "1c16f85c2b2e5b8b9a56ba8bb28d58d972d1ef8f76c1af9c79528122b1d4c7d5",
  "docs/user/README.md": "d1f560f8037860a1984a9627da30f3a9bcfc72d9e2e0b0e20bb5131cdde2a41a",
  "docs/user/attachments.md": "36ab1e1947ac7d133b5927b2a370372621ebf6b35fa33b01a0dc3c96b7cbeb84",
  "docs/user/behind-the-scenes.md": "fd9ae6e1440acf209435f367456009bfdb794b0609a74561ba7f62657231d256",
