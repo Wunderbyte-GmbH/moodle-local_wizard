@@ -51,6 +51,9 @@ final class docs_multi_corpus_test extends advanced_testcase {
     public function setUp(): void {
         \local_wizard\local\wizard\testing\mod_booking_dependency::require_installed();
         parent::setUp();
+        $this->resetAfterTest();
+        // The agent is off by default; these tests run with it switched on.
+        set_config('agent_enabled', 1, 'local_wizard');
         $this->resetAfterTest(true);
 
         $base = make_request_directory();

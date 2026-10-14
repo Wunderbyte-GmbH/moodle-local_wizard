@@ -39,6 +39,9 @@ final class mcp_scaffold_result_test extends advanced_testcase {
     public function setUp(): void {
         \local_wizard\local\wizard\testing\mod_booking_dependency::require_installed();
         parent::setUp();
+        $this->resetAfterTest();
+        // The agent is off by default; these tests run with it switched on.
+        set_config('agent_enabled', 1, 'local_wizard');
     }
 
     /**

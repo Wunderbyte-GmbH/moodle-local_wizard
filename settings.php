@@ -33,6 +33,14 @@ $settings = null;
 use local_wizard\local\wizard\orchestrator;
 use core_ai\aiactions\summarise_text;
 
+// Coexistence: when a higher-ranked engine plugin (local_wizard) owns the agent, its settings were
+// imported there and it carries its own pages. The bundled engine then registers no settings page at
+// all - no prompt seeding, no AI settings, no benchmark or governance pages. Inside the primary engine
+// this never triggers; in the bundled engine the pages come back when the primary engine is removed.
+if (\local_wizard\local\wizard\services\security\authorization_service::primary_engine_takes_over()) {
+    return;
+}
+
 // The admin navigation is built on every admin page, so it only gets the pages. The prompt
 // seeding and every setting - with their config and license work - wait for the full tree.
 if ($adminroot->fulltree) {
@@ -90,29 +98,9 @@ if ($adminroot->fulltree) {
     );
 }
 
-
-// Coexistence: when a higher-ranked engine plugin owns the agent, every knob on this page is
-// inert (the primary engine carries its own settings). Rather than offer admins controls that do
-// nothing, replace the page body with a single notice and stop building it here. Inside the
-// primary engine this never triggers; in the bundled engine it reverts automatically when the
-// primary engine is removed.
-if (\local_wizard\local\wizard\services\security\authorization_service::primary_engine_takes_over()) {
-    if ($adminroot->fulltree) {
-        $aisettingspage->add(
-            new admin_setting_heading(
-                'local_wizard_handedover_notice',
-                get_string('settings_handedover_heading', 'local_wizard'),
-                get_string('settings_handedover_desc', 'local_wizard')
-            )
-        );
-    }
-    $adminroot->add('localplugins', $aisettingspage);
-    return;
-}
-
-// Default is on: an unsaved (false) value must count as enabled.
-$agentenabledraw = get_config('local_wizard', 'agent_enabled');
-$agentenabled = $agentenabledraw === false || !empty($agentenabledraw);
+// Default is off: an unsaved (false) value counts as disabled. The same check gates the wand, the panel,
+// the shortcode and every webservice entry point via is_agent_engine_active().
+$agentenabled = \local_wizard\local\wizard\services\security\authorization_service::is_agent_enabled();
 
 if ($adminroot->fulltree) {
     // One-time announcement of the Wunderbyte Agent. The whole notice lives on a single checkbox so it
@@ -141,22 +129,20 @@ if ($adminroot->fulltree) {
             'local_wizard/agent_enabled',
             get_string('agent_enabled', 'local_wizard'),
             get_string('agent_enabled_desc', 'local_wizard'),
-            1
+            0
         )
     );
 
     // Navbar magic-wand toggle, directly below the enable checkbox; like the rest of the agent
-    // settings it is only shown while the agent is on.
-    if ($agentenabled) {
-        $aisettingspage->add(
-            new admin_setting_configcheckbox(
-                'local_wizard/inject_in_navbar',
-                get_string('inject_in_navbar', 'local_wizard'),
-                get_string('inject_in_navbar_desc', 'local_wizard'),
-                1
-            )
-        );
-    }
+    // settings it is only shown while the agent is on (see the hide_if loop below).
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'local_wizard/inject_in_navbar',
+            get_string('inject_in_navbar', 'local_wizard'),
+            get_string('inject_in_navbar_desc', 'local_wizard'),
+            1
+        )
+    );
 
     // Hard cap on the character length of a single user message. Messages longer than this are rejected
     // immediately at the entry point (before any provider/token spend). Keeps the agent public-facing but
@@ -231,16 +217,19 @@ if ($adminroot->fulltree) {
 // reflected because the admin tree keeps the page object by reference.
 $adminroot->add('localplugins', $aisettingspage);
 
-if ($agentenabled) {
-    // Admin pages that belong to the agent. Listed right below the enable
-    // checkbox so it is clear they are only available while the agent is on.
-    $skillgovurl = new moodle_url('/local/wizard/skill_governance.php');
-    $sitesearchgovurl = new moodle_url('/local/wizard/sitesearch_governance.php');
-    $skillselectiondebugurl = new moodle_url('/local/wizard/skill_selection_debug.php');
-    $benchmarkreporturl = new moodle_url('/local/wizard/benchmark_report.php');
-    $benchmarksettingsurl = new moodle_url('/admin/settings.php', ['section' => 'local_wizard_benchmark']);
+// Admin pages that belong to the agent. Listed right below the enable
+// checkbox so it is clear they are only available while the agent is on.
+$skillgovurl = new moodle_url('/local/wizard/skill_governance.php');
+$sitesearchgovurl = new moodle_url('/local/wizard/sitesearch_governance.php');
+$skillselectiondebugurl = new moodle_url('/local/wizard/skill_selection_debug.php');
+$benchmarkreporturl = new moodle_url('/local/wizard/benchmark_report.php');
+$benchmarksettingsurl = new moodle_url('/admin/settings.php', ['section' => 'local_wizard_benchmark']);
 
-    if ($adminroot->fulltree) {
+// The agent's settings are always registered, also while the agent is switched off, so that their defaults
+// (privacy mode, prompts, retention, ...) are stored on install and upgrade. Enabling the agent later - also via
+// CLI - therefore never runs it without them. While the agent is off they are only hidden (hide_if below).
+if ($adminroot->fulltree) {
+    if ($agentenabled) {
         $agentpageslist = html_writer::alist([
             html_writer::link($skillgovurl, get_string('skillgovernance', 'local_wizard')),
             html_writer::link($sitesearchgovurl, get_string('sitesearchgovernance', 'local_wizard')),
@@ -255,316 +244,330 @@ if ($agentenabled) {
                 get_string('agent_adminpages_desc', 'local_wizard') . $agentpageslist
             )
         );
-
-        // License key (same mechanism as Booking PRO; products 'wbagent' or combined
-        // 'bookingagent'). A combined key in Booking's licensekey field also unlocks
-        // the agent — the status text reflects whichever candidate key is valid.
-        $licensekeydesc = get_string('licensekeydesc', 'local_wizard');
-        if (class_exists('local_wizard\local\wb_license')) {
-            $ownkey = trim((string)get_config('local_wizard', 'licensekey'));
-            if ($ownkey !== '') {
-                $license = \local_wizard\local\wb_license::parse_licensekey_for_agent($ownkey);
-                if ($license['validforagent']) {
-                    $licensekeydesc = "<p style='color: green; font-weight: bold'>"
-                        . get_string('licenseactivated', 'local_wizard', $license['expirationdate'])
-                        . '</p>';
-                } else if (
-                    $license['expirationdate'] !== ''
-                    && in_array($license['product'], [
-                        \local_wizard\local\wb_license::PRODUCT_AGENT,
-                        \local_wizard\local\wb_license::PRODUCT_BOOKING_AGENT,
-                    ], true)
-                ) {
-                    $licensekeydesc = "<p style='color: red; font-weight: bold'>"
-                        . get_string('licenseexpired', 'local_wizard', $license['expirationdate'])
-                        . '</p>';
-                } else {
-                    $licensekeydesc = "<p style='color: red; font-weight: bold'>"
-                        . get_string('licenseinvalid', 'local_wizard')
-                        . '</p>';
-                }
-            } else if (\local_wizard\local\wb_license::agent_license_is_activated()) {
-                // Unlocked via a combined key in Booking's licensekey setting.
-                $licensekeydesc = "<p style='color: green; font-weight: bold'>"
-                    . get_string('licenseactivatedviabooking', 'local_wizard')
-                    . '</p>';
-            }
-        }
-
-        // If no PRO license grants access but the agent's LLM calls run over the Wunderbyte LLM
-        // endpoint (active trial or subscription at llm.wunderbyte.at), make clear that a Pro license
-        // is not currently required. Note: trial vs. subscription cannot be distinguished Moodle-side -
-        // both simply route through the Wunderbyte endpoint; enforcement happens at the gateway.
-        $accessservice = '\\local_wizard\\local\\wizard\\services\\agent_access_service';
-        if (
-            class_exists('local_wizard\\local\\wb_license')
-            && class_exists($accessservice)
-            && !\local_wizard\local\wb_license::agent_license_is_activated()
-            && $accessservice::runs_on_wunderbyte_llm()
-        ) {
-            $licensekeydesc = "<p style='color: green; font-weight: bold'>"
-                . get_string('licensenotrequiredviaendpoint', 'local_wizard')
-                . '</p>' . $licensekeydesc;
-        }
-
-        $aisettingspage->add(
-            new admin_setting_configtext(
-                'local_wizard/licensekey',
-                get_string('licensekey', 'local_wizard'),
-                $licensekeydesc,
-                ''
-            )
-        );
-
-        // Auto-generate a security token the first time so the [wizard] shortcode is
-        // protected out of the box; an admin can rotate it by clearing/editing the field.
-        $shortcodetoken = get_config('local_wizard', 'shortcodetoken');
-        if (empty($shortcodetoken)) {
-            $shortcodetoken = random_string(8);
-            set_config('shortcodetoken', $shortcodetoken, 'local_wizard');
-        }
-        $aisettingspage->add(
-            new admin_setting_configtext(
-                'local_wizard/shortcodetoken',
-                get_string('shortcodetoken', 'local_wizard'),
-                get_string('shortcodetoken_desc', 'local_wizard'),
-                $shortcodetoken,
-                PARAM_ALPHANUM
-            )
-        );
-
-        // Seed the two default corpora so sites get the out-of-the-box documentation sources. BOTH
-        // corpora point at the curated END-USER docs (docs/user) only, NOT the whole docs/ tree, so
-        // explain_docs never embeds the developer/architecture/implementation docs (embedding cost +
-        // keeps internal docs out of user-facing answers). Re-seed when unset, on the original bare
-        // default, OR on the previous half-scoped value (agent scoped, mod_booking still bare); a
-        // deliberately-emptied ('') or admin-customised value is preserved.
-        $aidocsrootcurrent = get_config('local_wizard', 'docscorpora');
-        $aidocsrootscoped = "local_wizard = local/wizard/docs/user\n"
-            . "mod_booking = mod/booking/docs/user";
-        if (
-            $aidocsrootcurrent === false
-            || $aidocsrootcurrent === "local_wizard\nmod_booking"
-            || $aidocsrootcurrent === "local_wizard = local/wizard/docs/user\nmod_booking"
-        ) {
-            set_config('docscorpora', $aidocsrootscoped, 'local_wizard');
-        }
-
-        // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
-        // link to the skill governance page where it is toggled.
-        $docsskillgovurl = new moodle_url('/local/wizard/skill_governance.php');
-        if (\local_wizard\local\wizard\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
-            $docsskillindicator = get_string('aidocsroot_skill_active', 'local_wizard');
-
-            // Per-corpus breakdown so admins see exactly which documentation is indexed and which
-            // configured corpus is still waiting to be embedded (read-only; never triggers a rebuild).
-            $docssummary = (new \local_wizard\local\wizard\services\lookup\docs_embeddings_readiness_service())
-                ->get_corpus_index_summary();
-            if (!$docssummary['provideravailable']) {
-                $docsskillindicator .= html_writer::div(
-                    get_string('aidocsroot_index_provider_missing', 'local_wizard'),
-                    'mt-2'
-                );
-            } else if (empty($docssummary['corpora'])) {
-                $docsskillindicator .= html_writer::div(
-                    get_string('aidocsroot_index_empty', 'local_wizard'),
-                    'mt-2'
-                );
-            } else {
-                $docscorpusitems = [];
-                foreach ($docssummary['corpora'] as $docscorpus) {
-                    $docscorpusitems[] = get_string(
-                        'aidocsroot_corpus_' . $docscorpus['state'],
-                        'local_wizard',
-                        (object)[
-                            'corpus' => s($docscorpus['corpusid']),
-                            'documents' => $docscorpus['documents'],
-                            'chunks' => $docscorpus['chunks'],
-                        ]
-                    );
-                }
-                $docsskillindicator .= html_writer::div(
-                    get_string('aidocsroot_index_heading', 'local_wizard'),
-                    'fw-bold mt-2'
-                ) . html_writer::alist($docscorpusitems, ['class' => 'mb-0']);
-            }
-        } else {
-            $docsskillindicator = get_string(
-                'aidocsroot_skill_inactive',
-                'local_wizard',
-                html_writer::link($docsskillgovurl, get_string('skillgovernance', 'local_wizard'))
-            );
-        }
-        $docscorporadesc = get_string('aidocsroot_desc', 'local_wizard')
-            . html_writer::div($docsskillindicator, 'alert alert-info mt-2');
-
-        $docscorpora = new \local_wizard\admin\setting_docs_corpora(
-            'local_wizard/docscorpora',
-            get_string('aidocsroot', 'local_wizard'),
-            $docscorporadesc,
-            $aidocsrootscoped,
-            PARAM_RAW
-        );
-        // Fast path: a corpus change schedules an (gated) incremental rebuild straight away.
-        $docscorpora->set_updatedcallback(
-            '\\local_wizard\\local\\wizard\\services\\lookup\\docs_embeddings_readiness_service'
-                . '::on_corpus_setting_updated'
-        );
-        $aisettingspage->add($docscorpora);
-
-        // Retrieval-foundation backend for the embeddings store (docs index). CSV = per-node temp files
-        // (default); DB = the shared local_wizard_embeddings table. Both satisfy the same contract; the DB
-        // backend is cluster-safe. Skills/family embeddings are unaffected (they stay on CSV for now).
-        // On switching to DB, the existing CSV index is imported once (no re-embedding).
-        $embeddingsstoresetting = new admin_setting_configselect(
-            'local_wizard/embeddingsstore',
-            get_string('embeddingsstore', 'local_wizard'),
-            get_string('embeddingsstore_desc', 'local_wizard'),
-            'csv',
-            [
-                'csv' => get_string('embeddingsstore_csv', 'local_wizard'),
-                'db' => get_string('embeddingsstore_db', 'local_wizard'),
-            ]
-        );
-        $embeddingsstoresetting->set_updatedcallback(
-            '\\local_wizard\\local\\wizard\\services\\retrieval\\'
-                . 'embeddings_store_migration_service::on_embeddingsstore_setting_updated'
-        );
-        $aisettingspage->add($embeddingsstoresetting);
-
-        // Site-content semantic search: per-area enablement lives on the dedicated, capability-gated
-        // site-search governance page ({local_wizard_search_scope}) — the former raw 'sitesearchareas'
-        // multicheckbox was retired (blueprint decision §11.25: a raw admin setting is no substitute;
-        // any legacy value is migrated lazily by sitesearch_scope_repository). Only the effort
-        // estimator's traffic-light thresholds remain plain settings here (§5b.5 — chunk counts only,
-        // deliberately no price/€ dimension).
-        $aisettingspage->add(
-            new admin_setting_configtext(
-                'local_wizard/sitesearchampelgreen',
-                get_string('sitesearchampelgreen', 'local_wizard'),
-                get_string('sitesearchampelgreen_desc', 'local_wizard'),
-                '2000',
-                PARAM_INT
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configtext(
-                'local_wizard/sitesearchampelred',
-                get_string('sitesearchampelred', 'local_wizard'),
-                get_string('sitesearchampelred_desc', 'local_wizard'),
-                '20000',
-                PARAM_INT
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configselect(
-                'local_wizard/aiprivacymode',
-                get_string('aiprivacymode', 'local_wizard'),
-                get_string('aiprivacymode_desc', 'local_wizard'),
-                'strict',
-                [
-                    'off' => get_string('aiprivacymode_off', 'local_wizard'),
-                    'soft' => get_string('aiprivacymode_soft', 'local_wizard'),
-                    'strict' => get_string('aiprivacymode_strict', 'local_wizard'),
-                ]
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configtextarea(
-                'local_wizard/aiprivacyprotectedwords',
-                get_string('aiprivacyprotectedwords', 'local_wizard'),
-                get_string('aiprivacyprotectedwords_desc', 'local_wizard'),
-                implode(', ', \local_wizard\local\wizard\privacy_anonymizer::PROTECTED_WORDS_DEFAULT),
-                PARAM_RAW,
-                60,
-                4
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configtextarea(
-                'local_wizard/aiinitialprompt_selection',
-                get_string('aiinitialprompt_selection', 'local_wizard'),
-                get_string('aiinitialprompt_selection_desc', 'local_wizard'),
-                $defaultplannerprompttemplate,
-                PARAM_RAW,
-                120,
-                8
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configtextarea(
-                'local_wizard/aiinitialprompt_parameter_construction',
-                get_string('aiinitialprompt_parameter_construction', 'local_wizard'),
-                get_string('aiinitialprompt_parameter_construction_desc', 'local_wizard'),
-                $defaultconstructorprompttemplate,
-                PARAM_RAW,
-                120,
-                8
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configtextarea(
-                'local_wizard/aiinitialprompt_summarise_text',
-                get_string('aiinitialprompt_summarise_text', 'local_wizard'),
-                get_string('aiinitialprompt_summarise_text_desc', 'local_wizard'),
-                $defaultsummarypromptprefix,
-                PARAM_RAW,
-                120,
-                8
-            )
-        );
-
-        $aisettingspage->add(
-            new admin_setting_configcheckbox(
-                'local_wizard/aidebugmode',
-                get_string('aidebugmode', 'local_wizard'),
-                get_string('aidebugmode_desc', 'local_wizard'),
-                0
-            )
-        );
-
-        // Retention for the raw LLM debug exchanges (only written while aidebugmode is on). The
-        // cleanup_old_llm_debug_task purges rows older than this; 0 keeps them forever (audit 15-F01).
-        $aisettingspage->add(
-            new admin_setting_configtext(
-                'local_wizard/llm_debug_retention_days',
-                get_string('llm_debug_retention_days', 'local_wizard'),
-                get_string('llm_debug_retention_days_desc', 'local_wizard'),
-                '30',
-                PARAM_INT
-            )
-        );
-
-        // Audit trail: fire the skill_executed / action_denied events from the executor chokepoint into
-        // the standard Moodle log store (Site admin > Reports > Logs). Master switch, default on.
-        $aisettingspage->add(
-            new admin_setting_configcheckbox(
-                'local_wizard/logskillexecution',
-                get_string('logskillexecution', 'local_wizard'),
-                get_string('logskillexecution_desc', 'local_wizard'),
-                1
-            )
-        );
-
-        // Read-only skills dominate the catalogue and can dominate the log volume; this suppresses the
-        // skill_executed event for read-only skills only. Writes and denials are always logged while the
-        // master switch above is on. Default on.
-        $aisettingspage->add(
-            new admin_setting_configcheckbox(
-                'local_wizard/logreadskills',
-                get_string('logreadskills', 'local_wizard'),
-                get_string('logreadskills_desc', 'local_wizard'),
-                1
-            )
-        );
     }
 
+    // License key (same mechanism as Booking PRO; products 'wbagent' or combined
+    // 'bookingagent'). A combined key in Booking's licensekey field also unlocks
+    // the agent — the status text reflects whichever candidate key is valid.
+    $licensekeydesc = get_string('licensekeydesc', 'local_wizard');
+    if (class_exists('local_wizard\local\wb_license')) {
+        $ownkey = trim((string)get_config('local_wizard', 'licensekey'));
+        if ($ownkey !== '') {
+            $license = \local_wizard\local\wb_license::parse_licensekey_for_agent($ownkey);
+            if ($license['validforagent']) {
+                $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+                    . get_string('licenseactivated', 'local_wizard', $license['expirationdate'])
+                    . '</p>';
+            } else if (
+                $license['expirationdate'] !== ''
+                && in_array($license['product'], [
+                    \local_wizard\local\wb_license::PRODUCT_AGENT,
+                    \local_wizard\local\wb_license::PRODUCT_BOOKING_AGENT,
+                ], true)
+            ) {
+                $licensekeydesc = "<p style='color: red; font-weight: bold'>"
+                    . get_string('licenseexpired', 'local_wizard', $license['expirationdate'])
+                    . '</p>';
+            } else {
+                $licensekeydesc = "<p style='color: red; font-weight: bold'>"
+                    . get_string('licenseinvalid', 'local_wizard')
+                    . '</p>';
+            }
+        } else if (\local_wizard\local\wb_license::agent_license_is_activated()) {
+            // Unlocked via a combined key in Booking's licensekey setting.
+            $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+                . get_string('licenseactivatedviabooking', 'local_wizard')
+                . '</p>';
+        }
+    }
+
+    // If no PRO license grants access but the agent's LLM calls run over the Wunderbyte LLM
+    // endpoint (active trial or subscription at llm.wunderbyte.at), make clear that a Pro license
+    // is not currently required. Note: trial vs. subscription cannot be distinguished Moodle-side -
+    // both simply route through the Wunderbyte endpoint; enforcement happens at the gateway.
+    $accessservice = '\\local_wizard\\local\\wizard\\services\\agent_access_service';
+    if (
+        class_exists('local_wizard\\local\\wb_license')
+        && class_exists($accessservice)
+        && !\local_wizard\local\wb_license::agent_license_is_activated()
+        && $accessservice::runs_on_wunderbyte_llm()
+    ) {
+        $licensekeydesc = "<p style='color: green; font-weight: bold'>"
+            . get_string('licensenotrequiredviaendpoint', 'local_wizard')
+            . '</p>' . $licensekeydesc;
+    }
+
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'local_wizard/licensekey',
+            get_string('licensekey', 'local_wizard'),
+            $licensekeydesc,
+            ''
+        )
+    );
+
+    // Auto-generate a security token the first time so the [wizard] shortcode is
+    // protected out of the box; an admin can rotate it by clearing/editing the field.
+    $shortcodetoken = get_config('local_wizard', 'shortcodetoken');
+    if (empty($shortcodetoken)) {
+        $shortcodetoken = random_string(8);
+        set_config('shortcodetoken', $shortcodetoken, 'local_wizard');
+    }
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'local_wizard/shortcodetoken',
+            get_string('shortcodetoken', 'local_wizard'),
+            get_string('shortcodetoken_desc', 'local_wizard'),
+            $shortcodetoken,
+            PARAM_ALPHANUM
+        )
+    );
+
+    // Seed the two default corpora so sites get the out-of-the-box documentation sources. BOTH
+    // corpora point at the curated END-USER docs (docs/user) only, NOT the whole docs/ tree, so
+    // explain_docs never embeds the developer/architecture/implementation docs (embedding cost +
+    // keeps internal docs out of user-facing answers). Re-seed when unset, on the original bare
+    // default, OR on the previous half-scoped value (agent scoped, mod_booking still bare); a
+    // deliberately-emptied ('') or admin-customised value is preserved.
+    $aidocsrootcurrent = get_config('local_wizard', 'docscorpora');
+    $aidocsrootscoped = "local_wizard = local/wizard/docs/user\n"
+        . "mod_booking = mod/booking/docs/user";
+    if (
+        $aidocsrootcurrent === false
+        || $aidocsrootcurrent === "local_wizard\nmod_booking"
+        || $aidocsrootcurrent === "local_wizard = local/wizard/docs/user\nmod_booking"
+    ) {
+        set_config('docscorpora', $aidocsrootscoped, 'local_wizard');
+    }
+
+    // E4 indicator: show whether the docs skill is active (embeddings only run when it is), with a
+    // link to the skill governance page where it is toggled.
+    $docsskillgovurl = new moodle_url('/local/wizard/skill_governance.php');
+    if (\local_wizard\local\wizard\services\lookup\docs_embeddings_gate::is_docs_skill_active()) {
+        $docsskillindicator = get_string('aidocsroot_skill_active', 'local_wizard');
+
+        // Per-corpus breakdown so admins see exactly which documentation is indexed and which
+        // configured corpus is still waiting to be embedded (read-only; never triggers a rebuild).
+        $docssummary = (new \local_wizard\local\wizard\services\lookup\docs_embeddings_readiness_service())
+            ->get_corpus_index_summary();
+        if (!$docssummary['provideravailable']) {
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_provider_missing', 'local_wizard'),
+                'mt-2'
+            );
+        } else if (empty($docssummary['corpora'])) {
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_empty', 'local_wizard'),
+                'mt-2'
+            );
+        } else {
+            $docscorpusitems = [];
+            foreach ($docssummary['corpora'] as $docscorpus) {
+                $docscorpusitems[] = get_string(
+                    'aidocsroot_corpus_' . $docscorpus['state'],
+                    'local_wizard',
+                    (object)[
+                        'corpus' => s($docscorpus['corpusid']),
+                        'documents' => $docscorpus['documents'],
+                        'chunks' => $docscorpus['chunks'],
+                    ]
+                );
+            }
+            $docsskillindicator .= html_writer::div(
+                get_string('aidocsroot_index_heading', 'local_wizard'),
+                'fw-bold mt-2'
+            ) . html_writer::alist($docscorpusitems, ['class' => 'mb-0']);
+        }
+    } else {
+        $docsskillindicator = get_string(
+            'aidocsroot_skill_inactive',
+            'local_wizard',
+            html_writer::link($docsskillgovurl, get_string('skillgovernance', 'local_wizard'))
+        );
+    }
+    $docscorporadesc = get_string('aidocsroot_desc', 'local_wizard')
+        . html_writer::div($docsskillindicator, 'alert alert-info mt-2');
+
+    $docscorpora = new \local_wizard\admin\setting_docs_corpora(
+        'local_wizard/docscorpora',
+        get_string('aidocsroot', 'local_wizard'),
+        $docscorporadesc,
+        $aidocsrootscoped,
+        PARAM_RAW
+    );
+    // Fast path: a corpus change schedules an (gated) incremental rebuild straight away.
+    $docscorpora->set_updatedcallback(
+        '\\local_wizard\\local\\wizard\\services\\lookup\\docs_embeddings_readiness_service'
+            . '::on_corpus_setting_updated'
+    );
+    $aisettingspage->add($docscorpora);
+
+    // Retrieval-foundation backend for the embeddings store (docs index). CSV = per-node temp files
+    // (default); DB = the shared local_wizard_embeddings table. Both satisfy the same contract; the DB
+    // backend is cluster-safe. Skills/family embeddings are unaffected (they stay on CSV for now).
+    // On switching to DB, the existing CSV index is imported once (no re-embedding).
+    $embeddingsstoresetting = new admin_setting_configselect(
+        'local_wizard/embeddingsstore',
+        get_string('embeddingsstore', 'local_wizard'),
+        get_string('embeddingsstore_desc', 'local_wizard'),
+        'csv',
+        [
+            'csv' => get_string('embeddingsstore_csv', 'local_wizard'),
+            'db' => get_string('embeddingsstore_db', 'local_wizard'),
+        ]
+    );
+    $embeddingsstoresetting->set_updatedcallback(
+        '\\local_wizard\\local\\wizard\\services\\retrieval\\'
+            . 'embeddings_store_migration_service::on_embeddingsstore_setting_updated'
+    );
+    $aisettingspage->add($embeddingsstoresetting);
+
+    // Site-content semantic search: per-area enablement lives on the dedicated, capability-gated
+    // site-search governance page ({local_wizard_search_scope}) — the former raw 'sitesearchareas'
+    // multicheckbox was retired (blueprint decision §11.25: a raw admin setting is no substitute;
+    // any legacy value is migrated lazily by sitesearch_scope_repository). Only the effort
+    // estimator's traffic-light thresholds remain plain settings here (§5b.5 — chunk counts only,
+    // deliberately no price/€ dimension).
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'local_wizard/sitesearchampelgreen',
+            get_string('sitesearchampelgreen', 'local_wizard'),
+            get_string('sitesearchampelgreen_desc', 'local_wizard'),
+            '2000',
+            PARAM_INT
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'local_wizard/sitesearchampelred',
+            get_string('sitesearchampelred', 'local_wizard'),
+            get_string('sitesearchampelred_desc', 'local_wizard'),
+            '20000',
+            PARAM_INT
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configselect(
+            'local_wizard/aiprivacymode',
+            get_string('aiprivacymode', 'local_wizard'),
+            get_string('aiprivacymode_desc', 'local_wizard'),
+            'strict',
+            [
+                'off' => get_string('aiprivacymode_off', 'local_wizard'),
+                'soft' => get_string('aiprivacymode_soft', 'local_wizard'),
+                'strict' => get_string('aiprivacymode_strict', 'local_wizard'),
+            ]
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtextarea(
+            'local_wizard/aiprivacyprotectedwords',
+            get_string('aiprivacyprotectedwords', 'local_wizard'),
+            get_string('aiprivacyprotectedwords_desc', 'local_wizard'),
+            implode(', ', \local_wizard\local\wizard\privacy_anonymizer::PROTECTED_WORDS_DEFAULT),
+            PARAM_RAW,
+            60,
+            4
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtextarea(
+            'local_wizard/aiinitialprompt_selection',
+            get_string('aiinitialprompt_selection', 'local_wizard'),
+            get_string('aiinitialprompt_selection_desc', 'local_wizard'),
+            $defaultplannerprompttemplate,
+            PARAM_RAW,
+            120,
+            8
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtextarea(
+            'local_wizard/aiinitialprompt_parameter_construction',
+            get_string('aiinitialprompt_parameter_construction', 'local_wizard'),
+            get_string('aiinitialprompt_parameter_construction_desc', 'local_wizard'),
+            $defaultconstructorprompttemplate,
+            PARAM_RAW,
+            120,
+            8
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configtextarea(
+            'local_wizard/aiinitialprompt_summarise_text',
+            get_string('aiinitialprompt_summarise_text', 'local_wizard'),
+            get_string('aiinitialprompt_summarise_text_desc', 'local_wizard'),
+            $defaultsummarypromptprefix,
+            PARAM_RAW,
+            120,
+            8
+        )
+    );
+
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'local_wizard/aidebugmode',
+            get_string('aidebugmode', 'local_wizard'),
+            get_string('aidebugmode_desc', 'local_wizard'),
+            0
+        )
+    );
+
+    // Retention for the raw LLM debug exchanges (only written while aidebugmode is on). The
+    // cleanup_old_llm_debug_task purges rows older than this; 0 keeps them forever (audit 15-F01).
+    $aisettingspage->add(
+        new admin_setting_configtext(
+            'local_wizard/llm_debug_retention_days',
+            get_string('llm_debug_retention_days', 'local_wizard'),
+            get_string('llm_debug_retention_days_desc', 'local_wizard'),
+            '30',
+            PARAM_INT
+        )
+    );
+
+    // Audit trail: fire the skill_executed / action_denied events from the executor chokepoint into
+    // the standard Moodle log store (Site admin > Reports > Logs). Master switch, default on.
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'local_wizard/logskillexecution',
+            get_string('logskillexecution', 'local_wizard'),
+            get_string('logskillexecution_desc', 'local_wizard'),
+            1
+        )
+    );
+
+    // Read-only skills dominate the catalogue and can dominate the log volume; this suppresses the
+    // skill_executed event for read-only skills only. Writes and denials are always logged while the
+    // master switch above is on. Default on.
+    $aisettingspage->add(
+        new admin_setting_configcheckbox(
+            'local_wizard/logreadskills',
+            get_string('logreadskills', 'local_wizard'),
+            get_string('logreadskills_desc', 'local_wizard'),
+            1
+        )
+    );
+
+    // Everything but the enable switch and the one-time announcement is hidden while the agent is off.
+    foreach ($aisettingspage->settings as $setting) {
+        if ($setting instanceof admin_setting_heading) {
+            continue;
+        }
+        $settingname = $setting->plugin . '/' . $setting->name;
+        if (in_array($settingname, ['local_wizard/agent_enabled', 'local_wizard/hideupdatehint'], true)) {
+            continue;
+        }
+        $aisettingspage->hide_if($settingname, 'local_wizard/agent_enabled');
+    }
+}
+
+if ($agentenabled) {
     // Queue depends_on DAG validation and blocked-confirmation TTL expiry are always on (no admin
     // toggle). Governance strict mode (fail registry init on contract diagnostics) is a CI/dev tool,
     // not an admin setting — it stays off by default and can be forced via set_config in CI.
@@ -604,50 +607,50 @@ if ($agentenabled) {
         'local/wizard:viewbenchmarks',
         true
     ));
-
-    // Benchmark settings.
-    // Hidden from the category/tree (reachable via the AI settings table of contents); the category
-    // page should only show "AI settings".
-    $benchmarkpage = new admin_settingpage(
-        'local_wizard_benchmark',
-        get_string('benchmark_settings_nav', 'local_wizard'),
-        'moodle/site:config',
-        true
-    );
-
-    if ($adminroot->fulltree) {
-        $benchmarkpage->add(new admin_setting_configtext(
-            'local_wizard/benchmark_retention_days',
-            get_string('benchmark_retention_days', 'local_wizard'),
-            get_string('benchmark_retention_days_desc', 'local_wizard'),
-            '365',
-            PARAM_INT
-        ));
-
-        $benchmarkpage->add(new admin_setting_configtext(
-            'local_wizard/benchmark_threshold_skill_hit_rate',
-            get_string('benchmark_threshold_skill_hit_rate', 'local_wizard'),
-            get_string('benchmark_threshold_skill_hit_rate_desc', 'local_wizard'),
-            '90',
-            PARAM_FLOAT
-        ));
-
-        $benchmarkpage->add(new admin_setting_configtext(
-            'local_wizard/benchmark_threshold_json_validity',
-            get_string('benchmark_threshold_json_validity', 'local_wizard'),
-            get_string('benchmark_threshold_json_validity_desc', 'local_wizard'),
-            '99',
-            PARAM_FLOAT
-        ));
-
-        $benchmarkpage->add(new admin_setting_configtext(
-            'local_wizard/benchmark_threshold_e2e_success',
-            get_string('benchmark_threshold_e2e_success', 'local_wizard'),
-            get_string('benchmark_threshold_e2e_success_desc', 'local_wizard'),
-            '85',
-            PARAM_FLOAT
-        ));
-    }
-
-    $adminroot->add('localplugins', $benchmarkpage);
 }
+
+// Benchmark settings: registered always (hidden page) so their defaults are stored like the AI settings.
+// Hidden from the category/tree (reachable via the AI settings table of contents); the category
+// page should only show "AI settings".
+$benchmarkpage = new admin_settingpage(
+    'local_wizard_benchmark',
+    get_string('benchmark_settings_nav', 'local_wizard'),
+    'moodle/site:config',
+    true
+);
+
+if ($adminroot->fulltree) {
+    $benchmarkpage->add(new admin_setting_configtext(
+        'local_wizard/benchmark_retention_days',
+        get_string('benchmark_retention_days', 'local_wizard'),
+        get_string('benchmark_retention_days_desc', 'local_wizard'),
+        '365',
+        PARAM_INT
+    ));
+
+    $benchmarkpage->add(new admin_setting_configtext(
+        'local_wizard/benchmark_threshold_skill_hit_rate',
+        get_string('benchmark_threshold_skill_hit_rate', 'local_wizard'),
+        get_string('benchmark_threshold_skill_hit_rate_desc', 'local_wizard'),
+        '90',
+        PARAM_FLOAT
+    ));
+
+    $benchmarkpage->add(new admin_setting_configtext(
+        'local_wizard/benchmark_threshold_json_validity',
+        get_string('benchmark_threshold_json_validity', 'local_wizard'),
+        get_string('benchmark_threshold_json_validity_desc', 'local_wizard'),
+        '99',
+        PARAM_FLOAT
+    ));
+
+    $benchmarkpage->add(new admin_setting_configtext(
+        'local_wizard/benchmark_threshold_e2e_success',
+        get_string('benchmark_threshold_e2e_success', 'local_wizard'),
+        get_string('benchmark_threshold_e2e_success_desc', 'local_wizard'),
+        '85',
+        PARAM_FLOAT
+    ));
+}
+
+$adminroot->add('localplugins', $benchmarkpage);
