@@ -1,3 +1,6 @@
+## Version 1.0.4 (2026101502)
+* Improvement: Booking no longer frames the standalone Wizard: the settings page, the readiness checks, the answer to "what can you do?", the shortcode description and the skill governance page speak of the Wizard, courses and activities instead of "Booking AI", booking options and the booking activity. The connect-Claude page suggests the MCP server name "moodle-wizard". Texts of the booking skills stay; they only appear with mod_booking. (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
+
 ## Version 1.0.3 (2026101501)
 * Improvement: The Wizard is on after installation. Sites that installed 1.0.1 or 1.0.2 are switched on by the upgrade, unless an admin has changed "Enable Wizard" before (here or in the bundled booking wizard). (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
 * Improvement: The Wizard is no longer marked as experimental. (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)

@@ -460,8 +460,8 @@
  "docs/user/reports-and-lookups.md": "3d90e055aab2978401a6acd31f84945f0efc28ac2d78c12bda335d5e387916ec",
  "docs/user/reports.md": "d6196da9da4cb5290a0e582907b72ead74f17c94b7c6a00a2018b801bbb0e325",
  "docs/user/troubleshooting.md": "4fea007bf4e330e1a49c23ea19c17bcbf99fea061199d33b2a6df62b8c4c6146",
- "lang/de/local_wizard.php": "c3495c8f12112c5e048f817af23f41294ae28331c6a03737e6c3e0c5adca127c",
- "lang/en/local_wizard.php": "5279c4c28d92a88d028d1b57a1396aa3b3b8049c1dec03435bba17590077e8e8",
+ "lang/de/local_wizard.php": "ab20aa5f18c67807c6f716de0b2de7076894755ff9838e7006cb4b3eb229dda0",
+ "lang/en/local_wizard.php": "b565a526db40e37eea35f8fce806950ce748385beb4b3c10b9c319c148f335a8",
  "lib.php": "1912d89c527188144389ebdfeea8e2e514603d1025ac7dc1007a347852683369",
  "settings.php": "b5fa965e881003971e23881aec5b29bab7b1bd2e1e4c3153c7c63b3abd9322a9",
  "sitesearch_governance.php": "067c327c7b89237995b2495909e6dddbbf349360f265e7e1d3621e8fb2c585e3",
@@ -858,5 +858,5 @@
  "thirdparty/pdfparser/src/Smalot/PdfParser/XObject/Image.php": "397737bd9321c56d9262a33c98f956152c768593f7eba915b3b98f1660656bed",
  "thirdpartylibs.xml": "f84e730c65a24e477a96e3a43c0f66ca84b0c689f938501fc834033876d32b72",
  "trial_challenge.php": "447b0fcb53051a6a4bd84305c686757897ed1b9152e8ce61318f857d1649ad20",
- "version.php": "0046f57a7fd5c4b9fbee207f0c77cf367d57b267b6a9c0c003d1bfb0fc4fe882"
+ "version.php": "37b4fa36342027ba3c62b529b5db9c9088fca074b31d698bf7dbaf6f1d3b05e8"
 }
