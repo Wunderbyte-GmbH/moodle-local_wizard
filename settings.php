@@ -129,7 +129,7 @@ if ($adminroot->fulltree) {
             'local_wizard/agent_enabled',
             get_string('agent_enabled', 'local_wizard'),
             get_string('agent_enabled_desc', 'local_wizard'),
-            0
+            1
         )
     );
 

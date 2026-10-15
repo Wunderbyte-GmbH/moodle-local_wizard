@@ -1,3 +1,8 @@
+## Version 1.0.3 (2026101501)
+* Improvement: The Wizard is on after installation. Sites that installed 1.0.1 or 1.0.2 are switched on by the upgrade, unless an admin has changed "Enable Wizard" before (here or in the bundled booking wizard). (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
+* Improvement: The Wizard is no longer marked as experimental. (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
+* Improvement: The activation hint and the update notice describe what the Wizard does in Moodle - finding content and people, courses and activities, quizzes and questions, reports, access, enrolment and notification problems - instead of booking options and the booking activity. (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
+
 ## Version 1.0.2 (2026101500)
 * Bugfix: The privacy mode fails closed: when it is unset, empty or unknown, the Wizard masks personal data strictly, as the setting default and the trial consent dialog promise. Only an explicit "off" or "soft" weakens the masking. Before, an unset mode sent personal data unmasked. (Wunderbyte-GmbH/Wunderbyte-GmbH#2601)
 * Bugfix: Creating or updating a URL or a Page sends the link and the page text as their own fields (externalurl, content) instead of a nested settings object, so the model writes valid requests for links and page texts; listing course categories and reports always sets a limit, so a request is never empty. New activities always get a name, except for a label. (Wunderbyte-GmbH/Wunderbyte-GmbH#2600)

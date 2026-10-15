@@ -112,7 +112,7 @@ final class agent_enabled_switch_test extends advanced_testcase {
      * so switching the agent on later (also via CLI) never runs it without e.g. its privacy mode.
      */
     public function test_install_stores_switch_off_and_all_defaults(): void {
-        $this->assertSame('0', get_config('local_wizard', 'agent_enabled'));
+        $this->assertSame('1', get_config('local_wizard', 'agent_enabled'));
         $this->assertSame('strict', get_config('local_wizard', 'aiprivacymode'));
         $this->assertNotFalse(get_config('local_wizard', 'aiprivacyprotectedwords'));
         $this->assertSame('1', get_config('local_wizard', 'inject_in_navbar'));
