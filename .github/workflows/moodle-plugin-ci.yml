@@ -1,0 +1,27 @@
+name: Moodle Plugin CI
+
+on: [push, pull_request]
+
+# local_wizard runs standalone: tests that need mod_booking skip themselves when it is not installed.
+# The Moodle branches are listed here on purpose. When moodle_branches is set, the shared workflow
+# ignores $plugin->supported in version.php, so keep both in line when a new Moodle version comes out.
+jobs:
+  # Moodle 4.5: no Wunderbyte AI provider (it needs Moodle 5.0+), so the agent tests skip here.
+  moodle45:
+    uses: Wunderbyte-GmbH/catalyst-moodle-workflows/.github/workflows/ci.yml@main
+    with:
+      disable_release: true
+      moodle_branches: "MOODLE_405_STABLE"
+      # The PHPDoc checker does not read thirdpartylibs.xml: the vendored pdfparser library.
+      phpdocchecker_ignore_paths: 'thirdparty'
+
+  # Moodle 5.0 - 5.3 with the Wunderbyte AI provider, so the agent tests run as well.
+  moodle5x:
+    uses: Wunderbyte-GmbH/catalyst-moodle-workflows/.github/workflows/ci.yml@main
+    with:
+      disable_release: true
+      moodle_branches: "MOODLE_500_STABLE MOODLE_501_STABLE MOODLE_502_STABLE MOODLE_503_STABLE"
+      extra_plugin_runners: |
+        moodle-plugin-ci add-plugin --branch main Wunderbyte-GmbH/moodle-aiprovider_wunderbyte
+      # The PHPDoc checker does not read thirdpartylibs.xml: the vendored pdfparser library.
+      phpdocchecker_ignore_paths: 'thirdparty'
