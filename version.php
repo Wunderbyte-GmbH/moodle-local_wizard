@@ -29,4 +29,4 @@ $plugin->requires  = 2024100700;
 $plugin->component = 'local_wizard';
 $plugin->maturity  = MATURITY_STABLE;
 $plugin->release   = '1.0.4';
-$plugin->supported = [405, 502];
+$plugin->supported = [405, 503];
