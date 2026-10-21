@@ -945,19 +945,32 @@ abstract class core_skill_base extends base_skill {
             return [];
         }
 
+        $params = ['modname' => $modname];
+        if ($DB->get_dbfamily() === 'postgres') {
+            // PostgreSQL has no accent-insensitive LIKE (pgsql_native_moodle_database::sql_like()), so "federation"
+            // would never find "Fédération". Fold the common accented letters on both sides with the built-in
+            // translate(); the other databases fold accents through their collation.
+            $fold = self::accent_fold_map();
+            $namematch = $DB->sql_like('translate(LOWER(inst.name), :accented, :plain)', ':needle', false, true);
+            $params['accented'] = implode('', array_keys($fold));
+            $params['plain'] = implode('', $fold);
+            $needle = strtr(\core_text::strtolower($query), $fold);
+        } else {
+            $namematch = $DB->sql_like('inst.name', ':needle', false, false);
+            $needle = $query;
+        }
+        $params['needle'] = '%' . $DB->sql_like_escape($needle) . '%';
+
         $sql = "SELECT cm.id AS cmid, inst.name AS name, c.id AS courseid, c.fullname AS coursename
                   FROM {course_modules} cm
                   JOIN {modules} m ON m.id = cm.module AND m.name = :modname
                   JOIN {" . $modname . "} inst ON inst.id = cm.instance
                   JOIN {course} c ON c.id = cm.course
-                 WHERE " . $DB->sql_like('inst.name', ':needle', false, false) . "
+                 WHERE " . $namematch . "
                    AND cm.deletioninprogress = 0
               ORDER BY c.id, inst.name";
 
-        $rows = $DB->get_records_sql($sql, [
-            'modname' => $modname,
-            'needle' => '%' . $DB->sql_like_escape($query) . '%',
-        ], 0, $limit * 5);
+        $rows = $DB->get_records_sql($sql, $params, 0, $limit * 5);
 
         $out = [];
         foreach ($rows as $row) {
@@ -982,5 +995,34 @@ abstract class core_skill_base extends base_skill {
         }
 
         return $out;
+    }
+
+    /**
+     * Accented Latin letters and the plain lower-case letter each one folds to, one character each.
+     *
+     * One character on both sides is what SQL translate() needs; letters that fold to two characters
+     * (ß, æ, œ) are left out and stay as they are on both sides of the comparison. The upper-case
+     * forms are mapped as well, because LOWER() only lower-cases ASCII on a database with the C locale.
+     *
+     * @return array<string, string>
+     */
+    private static function accent_fold_map(): array {
+        $groups = [
+            'a' => 'àáâãäåāăą', 'c' => 'çćĉċč', 'd' => 'ďđ', 'e' => 'èéêëēĕėęě', 'g' => 'ĝğġģ',
+            'h' => 'ĥħ', 'i' => 'ìíîïĩīĭįı', 'j' => 'ĵ', 'k' => 'ķ', 'l' => 'ĺļľŀł', 'n' => 'ñńņňŉ',
+            'o' => 'òóôõöøōŏő', 'r' => 'ŕŗř', 's' => 'śŝşšș', 't' => 'ţťŧț', 'u' => 'ùúûüũūŭůűų',
+            'w' => 'ŵ', 'y' => 'ýÿŷ', 'z' => 'źżž',
+        ];
+        $map = [];
+        foreach ($groups as $plain => $accented) {
+            foreach (preg_split('//u', $accented, -1, PREG_SPLIT_NO_EMPTY) as $letter) {
+                $map[$letter] = $plain;
+                $upper = \core_text::strtoupper($letter);
+                if ($upper !== $letter && \core_text::strlen($upper) === 1 && $upper !== strtoupper($plain)) {
+                    $map[$upper] = $plain;
+                }
+            }
+        }
+        return $map;
     }
 }
