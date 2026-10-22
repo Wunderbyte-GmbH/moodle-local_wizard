@@ -17,6 +17,7 @@
 namespace local_wizard;
 
 use local_wizard\local\wizard\orchestrator;
+use local_wizard\local\wizard\skill_discovery;
 use local_wizard\local\wizard\skill_registry_factory;
 use local_wizard\local\wizard\services\embeddings\embeddings_catalog_builder_service;
 use local_wizard\local\wizard\services\embeddings\embeddings_retrieval_service;
@@ -83,6 +84,13 @@ final class routing_guard_test extends \advanced_testcase {
         $family = static fn(string $key): string => explode('.', $key, 2)[0];
         $installed = array_unique(array_map($family, array_keys($expected)));
         $extra = array_values(array_filter($extra, static fn(string $key): bool => in_array($family($key), $installed, true)));
+        // A skill this Moodle version cannot run is left out by discovery (e.g. report schedules before Moodle 5.1);
+        // its anchors are absent here as well, not stale.
+        $unsupported = skill_discovery::get_unsupported_skill_names();
+        $extra = array_values(array_filter(
+            $extra,
+            static fn(string $key): bool => !in_array(explode('#', $key, 2)[0], $unsupported, true)
+        ));
         $this->assertSame(
             [[], []],
             [$changed, $extra],

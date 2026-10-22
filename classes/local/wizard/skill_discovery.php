@@ -32,6 +32,9 @@ class skill_discovery {
     /** @var string[] diagnostics collected during the last discovery run */
     private static array $lastdiagnostics = [];
 
+    /** @var array<string, string[]> per component: skills left out because this Moodle lacks their core API */
+    private static array $unsupportedskills = [];
+
     /**
      * Return all concrete skill instances keyed by skill name.
      *
@@ -53,9 +56,20 @@ class skill_discovery {
         usort($classes, [self::class, 'compare_skill_classes']);
 
         $skills = [];
+        self::$unsupportedskills[$component] = [];
         foreach ($classes as $classname) {
             $instance = self::instantiate_if_supported($classname, skill_interface::class);
             if (!$instance instanceof skill_interface) {
+                continue;
+            }
+            // A skill that needs a newer core API than this Moodle has is left out (not a broken class: no diagnostic).
+            if (method_exists($instance, 'is_supported_by_this_moodle') && !$instance->is_supported_by_this_moodle()) {
+                try {
+                    self::$unsupportedskills[$component][] = trim($instance->get_name());
+                } catch (\Throwable $e) {
+                    // The name is only informational here.
+                    unset($e);
+                }
                 continue;
             }
 
@@ -104,6 +118,10 @@ class skill_discovery {
             if (!$instance instanceof skill_trigger_provider_interface) {
                 continue;
             }
+            // Same rule as get_skill_instances(): no triggers for a skill this Moodle cannot run.
+            if (method_exists($instance, 'is_supported_by_this_moodle') && !$instance->is_supported_by_this_moodle()) {
+                continue;
+            }
 
             $providers[] = $instance;
         }
@@ -118,6 +136,15 @@ class skill_discovery {
      */
     public static function get_last_diagnostics(): array {
         return self::$lastdiagnostics;
+    }
+
+    /**
+     * Names of the skills discovery left out because this Moodle version lacks the core API they need.
+     *
+     * @return string[]
+     */
+    public static function get_unsupported_skill_names(): array {
+        return array_values(array_unique(array_merge([], ...array_values(self::$unsupportedskills))));
     }
 
     /**

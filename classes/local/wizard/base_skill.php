@@ -127,6 +127,18 @@ abstract class base_skill implements skill_interface {
     }
 
     /**
+     * Whether this Moodle version has the core API the skill needs.
+     *
+     * The plugin supports Moodle 4.5 and later. A skill that builds on a newer core API overrides this,
+     * and skill discovery leaves it out on older versions, so it is never offered there. Default: true.
+     *
+     * @return bool
+     */
+    public function is_supported_by_this_moodle(): bool {
+        return true;
+    }
+
+    /**
      * Whether this skill may be exposed to external MCP clients (e.g. Claude).
      *
      * Default true: a skill reachable in chat is reachable over MCP too, and the same
