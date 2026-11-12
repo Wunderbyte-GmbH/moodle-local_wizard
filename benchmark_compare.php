@@ -59,7 +59,7 @@ $PAGE->set_url(new moodle_url(
 $PAGE->set_title(get_string('benchmark_compare_title', 'local_wizard'));
 $PAGE->set_heading(get_string('benchmark_compare_heading', 'local_wizard', (object)[
     'runa' => $runaid,
-    'runb' => $runb ? '#' . $runb->id : get_string('benchmark_no_baseline', 'local_wizard', 'no baseline'),
+    'runb' => $runb ? '#' . $runb->id : get_string('benchmark_no_baseline', 'local_wizard'),
 ]));
 $PAGE->set_pagelayout('admin');
 

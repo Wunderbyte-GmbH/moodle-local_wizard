@@ -1,3 +1,22 @@
+## Version 1.0.5 (2026111200)
+* Improvement: The Wizard ships without any license: the license key setting, the license check and every text about a PRO license are gone. Full access comes from the Wunderbyte LLM gateway only; the PRO license stays with the engine bundled in mod_booking. (Wunderbyte-GmbH/moodle-local_wizard#2)
+* Bugfix: The plugin package carries its license file (GPL v3) in the plugin root. (Wunderbyte-GmbH/moodle-local_wizard#1)
+* Bugfix: Every skill capability declares its own capability type and risks instead of a shared data loss and XSS default: the memory skills of authenticated users carry no risk, read and diagnose skills carry at most the personal data risk. (Wunderbyte-GmbH/Wunderbyte-GmbH#2779)
+* Bugfix: The embeddings fixture CLI prefixes its helper functions with the component name. (Wunderbyte-GmbH/moodle-local_wizard#4)
+* Improvement: The install step reads the settings of the bundled engine through get_config() instead of the config_plugins table. (Wunderbyte-GmbH/moodle-local_wizard#5)
+* Bugfix: The missing strings cachedef_mcpratelimit, cachedef_sitesearchestimates, benchmark_failed and benchmark_no_baseline exist in English and German. (Wunderbyte-GmbH/moodle-local_wizard#6)
+* Improvement: The chat panel, the chat error replies, the upload error and the skill governance page take their texts from language strings instead of hard-coded English. (Wunderbyte-GmbH/moodle-local_wizard#7)
+* Improvement: The site search coverage index, the course to category map and the privacy export read through recordsets, so memory holds one batch at a time. (Wunderbyte-GmbH/moodle-local_wizard#8)
+* Improvement: The skill governance search filter is an AMD module, and the confirmation card, the ambiguity options, the follow-up suggestions, the document preview, the setup messages, the command list and the debug panels are rendered from Mustache templates instead of HTML strings in JavaScript. (Wunderbyte-GmbH/moodle-local_wizard#9, Wunderbyte-GmbH/moodle-local_wizard#12)
+* Bugfix: Moodle 4.5 to 5.3 compatibility: the activity display check, the report row count and the report schedule types are guarded on older cores, activities move with the course format actions on Moodle 5.2 and later, and the AI settings page no longer warns about too much data passed to JavaScript on Moodle 4.5. Moodle 5.3 is marked as supported. (Wunderbyte-GmbH/Wunderbyte-GmbH#2663, Wunderbyte-GmbH/Wunderbyte-GmbH#2723, Wunderbyte-GmbH/Wunderbyte-GmbH#2774)
+* Improvement: A skill can declare the oldest Moodle it runs on; on an older site the skill governance page and the skill listing say which Moodle it needs instead of the skill being absent. (Wunderbyte-GmbH/Wunderbyte-GmbH#2723)
+* New feature: Enhanced content generation runs course chapters, outlines and quiz questions on the provider's content model behind an admin switch. (Wunderbyte-GmbH/Wunderbyte-GmbH#2670)
+* Improvement: course.enrol_user takes several people at once, previews them all and enrols them in one confirmation.
+* Improvement: The Wizard warns when an AI provider action it runs with has a system instruction of its own or none saved.
+* Bugfix: A provider that is out of credit (HTTP 402) shows the quota message instead of the generic provider error.
+* Bugfix: core.diagnose_permissions treats site administrators as having every capability. (Wunderbyte-GmbH/Wunderbyte-GmbH#2625)
+* Bugfix: The report clarifications hand their choices to the engine as candidates, so an unresolved data source or column ends in a selectable list. (Wunderbyte-GmbH/Wunderbyte-GmbH#2763)
+
 ## Version 1.0.4 (2026101502)
 * Improvement: Booking no longer frames the standalone Wizard: the settings page, the readiness checks, the answer to "what can you do?", the shortcode description and the skill governance page speak of the Wizard, courses and activities instead of "Booking AI", booking options and the booking activity. The connect-Claude page suggests the MCP server name "moodle-wizard". Texts of the booking skills stay; they only appear with mod_booking. (Wunderbyte-GmbH/Wunderbyte-GmbH#2605)
 
