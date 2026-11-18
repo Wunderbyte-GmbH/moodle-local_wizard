@@ -1,3 +1,8 @@
+## Version 1.0.6 (2026111800)
+* Improvement: The text of an uploaded PDF is masked like the chat message before it is stored and sent: full names of site users and e-mail addresses are replaced by placeholders. The privacy check before sending tells the user how many names and addresses were masked and which attachments it cannot check (an image, a PDF without readable text). (georgmaisser/moodle-bookingextension_agent#5)
+* Bugfix: Questions generated from an uploaded PDF carry the real names again after the confirmation. (georgmaisser/moodle-bookingextension_agent#5)
+* Improvement: The plugin package is 2.7 MB instead of 21.7 MB: an unused embeddings test fixture is gone, the remaining ones are stored as binary float16 and stay out of the release package. (Wunderbyte-GmbH/Wunderbyte-GmbH#2789)
+
 ## Version 1.0.5 (2026111200)
 * Improvement: The Wizard ships without any license: the license key setting, the license check and every text about a PRO license are gone. Full access comes from the Wunderbyte LLM gateway only; the PRO license stays with the engine bundled in mod_booking. (Wunderbyte-GmbH/moodle-local_wizard#2)
 * Bugfix: The plugin package carries its license file (GPL v3) in the plugin root. (Wunderbyte-GmbH/moodle-local_wizard#1)

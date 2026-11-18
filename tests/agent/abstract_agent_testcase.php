@@ -145,6 +145,10 @@ abstract class abstract_agent_testcase extends agent_testcase_parent {
         // on the local_wizard_ai_llm_debug trail, so enable debug mode for the suite.
         set_config('aidebugmode', 1, 'local_wizard');
 
+        // The embeddings fixtures are committed in a compact form; the store reads CSV files.
+        \local_wizard\local\wizard\services\embeddings\embeddings_fixture_codec::unpack_directory(
+            __DIR__ . '/fixtures'
+        );
         $this->maybe_register_live_ai_provider();
         $this->maybe_load_embeddings_fixture();
     }
